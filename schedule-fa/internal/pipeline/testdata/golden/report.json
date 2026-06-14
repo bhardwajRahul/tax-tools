@@ -1,0 +1,169 @@
+{
+  "year": 2024,
+  "disclaimer": "Not tax advice. A working draft to verify before filing. Schedule FA covers the CALENDAR year; see the audit trail for every figure.",
+  "a2": [
+    {
+      "institution": "Interactive Brokers LLC",
+      "address": "One Pickwick Plaza, Greenwich, CT",
+      "zip": "06830",
+      "country_code": "1",
+      "account_number": "U1234567",
+      "status": "Owner",
+      "account_opened": "2021-05-10",
+      "peak_balance_inr": "3352670.00",
+      "closing_balance_inr": "2600720.00",
+      "gross_credited_inr": "3330.75",
+      "needs_review": true,
+      "review_note": "peak balance is an upper bound (per-security peaks summed, not simultaneous); cash not included"
+    }
+  ],
+  "a3": [
+    {
+      "country_name": "United States of America",
+      "country_code": "1",
+      "entity_name": "APPLE INC",
+      "nature": "Listed equity share",
+      "acquired_on": "2023-01-10",
+      "initial_value_inr": "498600.00",
+      "peak_value_inr": "2138750.00",
+      "peak_approximate": true,
+      "closing_value_inr": "2138750.00",
+      "gross_dividend_inr": "2077.50",
+      "sale_proceeds_inr": "0.00",
+      "needs_review": true,
+      "review_note": "entity address/ZIP missing (set via --entities); 1 corporate action(s) in year — verify quantity/cost basis; fx: no USD TTBR on or before 2023-01-10 (earliest available is 2024-01-05)",
+      "audit": [
+        {
+          "figure": "Initial value",
+          "source_currency": "USD",
+          "source_amount": "6000.00",
+          "ttbr": "83.1000",
+          "rate_date": "2024-01-05",
+          "result_inr": "498600.00"
+        },
+        {
+          "figure": "Peak value",
+          "source_currency": "USD",
+          "source_amount": "25000.00",
+          "ttbr": "85.5500",
+          "rate_date": "2024-12-31",
+          "result_inr": "2138750.00"
+        },
+        {
+          "figure": "Closing value",
+          "source_currency": "USD",
+          "source_amount": "25000.00",
+          "ttbr": "85.5500",
+          "rate_date": "2024-12-31",
+          "result_inr": "2138750.00"
+        },
+        {
+          "figure": "Dividend",
+          "source_currency": "USD",
+          "source_amount": "25.00",
+          "ttbr": "83.1000",
+          "rate_date": "2024-01-05",
+          "result_inr": "2077.50"
+        }
+      ]
+    },
+    {
+      "country_name": "United States of America",
+      "country_code": "1",
+      "entity_name": "MICROSOFT CORP",
+      "nature": "Listed equity share",
+      "acquired_on": "2024-02-01",
+      "initial_value_inr": "664800.00",
+      "peak_value_inr": "751950.00",
+      "peak_approximate": true,
+      "closing_value_inr": "0.00",
+      "gross_dividend_inr": "0.00",
+      "sale_proceeds_inr": "751950.00",
+      "needs_review": true,
+      "review_note": "entity address/ZIP missing (set via --entities)",
+      "audit": [
+        {
+          "figure": "Initial value",
+          "source_currency": "USD",
+          "source_amount": "8000.00",
+          "ttbr": "83.1000",
+          "rate_date": "2024-01-05",
+          "result_inr": "664800.00"
+        },
+        {
+          "figure": "Peak value",
+          "source_currency": "USD",
+          "source_amount": "9000.00",
+          "ttbr": "83.5500",
+          "rate_date": "2024-06-14",
+          "result_inr": "751950.00"
+        },
+        {
+          "figure": "Sale proceeds",
+          "source_currency": "USD",
+          "source_amount": "9000.00",
+          "ttbr": "83.5500",
+          "rate_date": "2024-06-14",
+          "result_inr": "751950.00"
+        }
+      ]
+    },
+    {
+      "country_name": "United States of America",
+      "country_code": "1",
+      "entity_name": "VANGUARD S\u0026P 500 ETF",
+      "nature": "Exchange Traded Fund",
+      "acquired_on": "2024-06-20",
+      "initial_value_inr": "417750.00",
+      "peak_value_inr": "461970.00",
+      "peak_approximate": true,
+      "closing_value_inr": "461970.00",
+      "gross_dividend_inr": "1253.25",
+      "sale_proceeds_inr": "0.00",
+      "needs_review": true,
+      "review_note": "entity address/ZIP missing (set via --entities)",
+      "audit": [
+        {
+          "figure": "Initial value",
+          "source_currency": "USD",
+          "source_amount": "3500.00",
+          "ttbr": "83.5500",
+          "rate_date": "2024-06-14",
+          "result_inr": "292425.00"
+        },
+        {
+          "figure": "Initial value",
+          "source_currency": "USD",
+          "source_amount": "1500.00",
+          "ttbr": "83.5500",
+          "rate_date": "2024-06-14",
+          "result_inr": "125325.00"
+        },
+        {
+          "figure": "Peak value",
+          "source_currency": "USD",
+          "source_amount": "5400.00",
+          "ttbr": "85.5500",
+          "rate_date": "2024-12-31",
+          "result_inr": "461970.00"
+        },
+        {
+          "figure": "Closing value",
+          "source_currency": "USD",
+          "source_amount": "5400.00",
+          "ttbr": "85.5500",
+          "rate_date": "2024-12-31",
+          "result_inr": "461970.00"
+        },
+        {
+          "figure": "Dividend",
+          "source_currency": "USD",
+          "source_amount": "15.00",
+          "ttbr": "83.5500",
+          "rate_date": "2024-06-14",
+          "result_inr": "1253.25"
+        }
+      ]
+    }
+  ]
+}

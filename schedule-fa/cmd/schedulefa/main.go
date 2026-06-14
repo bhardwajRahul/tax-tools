@@ -18,9 +18,9 @@ import (
 	"github.com/akagr/tax-tools/schedule-fa/internal/ibkr"
 	"github.com/akagr/tax-tools/schedule-fa/internal/model"
 	"github.com/akagr/tax-tools/schedule-fa/internal/peak"
+	"github.com/akagr/tax-tools/schedule-fa/internal/pipeline"
 	"github.com/akagr/tax-tools/schedule-fa/internal/prices"
 	"github.com/akagr/tax-tools/schedule-fa/internal/report"
-	"github.com/akagr/tax-tools/schedule-fa/internal/schedulefa"
 )
 
 const disclaimer = "NOTE: not tax advice. Output is a working draft to verify before filing."
@@ -139,39 +139,31 @@ func cmdGenerate(args []string) int {
 	}
 	fmt.Printf("  rates            : %s\n", ratesPath)
 
-	// Peak: exact (mode B) when --prices is given, else approximate (mode C).
-	var peaks []peak.Result
-	var a2Peak *fx.Conversion
+	// Prices enable the exact peak engine (mode B); otherwise mode C.
+	var priceProvider peak.PriceProvider
 	if *pricesP != "" {
 		priceStore, err := prices.Load(*pricesP)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: loading prices from %q: %v\n", *pricesP, err)
 			return 1
 		}
-		secs, port, exact, err := peak.ComputeExact(st, store, priceStore)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: computing exact peak: %v\n", err)
-			return 1
-		}
-		peaks = secs
-		if exact {
-			a2Peak = &port
-		}
-		fmt.Printf("  peak mode        : exact (mode B), prices %s%s\n", *pricesP, exactNote(exact))
-	} else {
-		peaks, _ = peak.Compute(st, store, peak.ModeApprox, nil)
-		fmt.Printf("  peak mode        : approximate (mode C) — pass --prices for exact (mode B)\n")
+		priceProvider = priceStore
 	}
-
 	ents, err := entities.Load(*entitiesP)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: loading entity metadata from %q: %v\n", *entitiesP, err)
 		return 1
 	}
-	rep, err := schedulefa.Build(st, store, peaks, schedulefa.Options{Entities: ents, A2Peak: a2Peak})
+	res, err := pipeline.BuildReport(st, store, priceProvider, ents)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: building report: %v\n", err)
 		return 1
+	}
+	rep := res.Report
+	if res.ExactPeak {
+		fmt.Printf("  peak mode        : exact (mode B), prices %s%s\n", *pricesP, exactNote(res.A2PeakExact))
+	} else {
+		fmt.Printf("  peak mode        : approximate (mode C) — pass --prices for exact (mode B)\n")
 	}
 	formats, err := parseFormats(*format)
 	if err != nil {
