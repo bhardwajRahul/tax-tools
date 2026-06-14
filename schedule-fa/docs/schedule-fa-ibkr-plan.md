@@ -28,12 +28,12 @@ This is the single most important and most error-prone rule.
 
 ### 1.2 Which tables apply to IBKR
 
-| Table | Title | Applies to IBKR? |
-|-------|-------|------------------|
-| **A2** | Foreign Custodial Account | **Yes** — the IBKR brokerage account itself is a custodial account. One row for the account. |
-| **A3** | Foreign Equity and Debt Interest | **Yes** — one row **per security** held at any time during the calendar year (stocks, ETFs, RSUs, bonds). |
-| A1 | Foreign Depository Account | Only if you hold an IBKR cash/bank-like depository balance (usually report cash under A2). |
-| D / table for income | Income from foreign sources | Dividends/interest may also surface here depending on form. |
+| Table                | Title                            | Applies to IBKR?                                                                                          |
+|----------------------|----------------------------------|-----------------------------------------------------------------------------------------------------------|
+| **A2**               | Foreign Custodial Account        | **Yes** — the IBKR brokerage account itself is a custodial account. One row for the account.              |
+| **A3**               | Foreign Equity and Debt Interest | **Yes** — one row **per security** held at any time during the calendar year (stocks, ETFs, RSUs, bonds). |
+| A1                   | Foreign Depository Account       | Only if you hold an IBKR cash/bank-like depository balance (usually report cash under A2).                |
+| D / table for income | Income from foreign sources      | Dividends/interest may also surface here depending on form.                                               |
 
 > **Open design question:** Most filers report each holding in **A3** and *also* report the
 > overall account in **A2**. We must decide whether the tool emits A2, A3, or both.
@@ -73,13 +73,13 @@ the Telegraphic Transfer Buying Rate published by State Bank of India. This is m
 
 The rate to use depends on the field:
 
-| Field | Convert using TTBR as on… |
-|-------|---------------------------|
-| Initial value | date of acquisition of each lot |
-| Peak value | the date on which the peak (in INR terms) occurred |
-| Closing value | 31-Dec (or last working day with a published rate) |
+| Field           | Convert using TTBR as on…                                              |
+|-----------------|------------------------------------------------------------------------|
+| Initial value   | date of acquisition of each lot                                        |
+| Peak value      | the date on which the peak (in INR terms) occurred                     |
+| Closing value   | 31-Dec (or last working day with a published rate)                     |
 | Dividend income | date credited (commonly approximated to 31-Dec closing rate; see §5.3) |
-| Sale proceeds | date of sale |
+| Sale proceeds   | date of sale                                                           |
 
 **Subtlety:** the peak must be computed in **INR**, i.e. `units × price(USD) × TTBR` on
 each day, and the max taken over the calendar year — *not* the USD peak converted once.
@@ -208,7 +208,7 @@ final INR number.
 
 ```
 tax-tools/
-  cmd/schedulefa/        # CLI entrypoint (cobra)
+  cmd/schedulefa/        # CLI entrypoint (stdlib flag + subcommand router; no external deps in v1)
   internal/
     ibkr/                # Flex Web Service client + XML statement parser
     model/               # domain types: Account, Lot, Trade, Dividend, Holding
@@ -272,16 +272,34 @@ schedulefa generate \
 
 ---
 
-## 9. Decisions to confirm before coding
+## 9. Decisions — LOCKED (2026-06-14)
 
-1. **A2 + A3 both**, or A3 only? (Recommend both.)
-2. **Peak strategy for v1**: ship approximate (C) first, exact (B) later? (Recommend yes.)
-3. **Offline statement file first**, Web Service later? (Recommend yes — easier to test,
-   no secrets needed.)
-4. **Scope**: Schedule FA only, or also Schedule TR/FSI/CG (FTC for withholding, capital
-   gains)? (Recommend FA-only for v1; design fx/model to be reusable.)
-5. **Currencies**: USD-only for v1 or multi-currency from the start? (Recommend
-   USD-first, currency field plumbed through everywhere.)
+1. **Emit both A2 and A3.** A2 = account-level custodial summary, A3 = per-security detail.
+2. **Peak: approximate (mode C) for v1**, exact daily reconstruction (mode B) in M4. Mode C
+   output is always labelled "approximate" with a manual-review flag.
+3. **Offline downloaded statement (XML) first**; Flex Web Service online pull deferred to M6.
+4. **Scope = Schedule FA only for v1.** `fx` and `model` packages designed to be reused by
+   future tools (Schedule TR/FSI/CG) but those are out of scope now.
+5. **USD-first**, but `Currency` is plumbed through every value and the `fx` store is
+   keyed by currency from day one, so adding EUR/GBP/etc. is data-only, not code.
+
+### Repo shape (locked)
+
+This repo is a **monorepo of tax tools**. Each tool is an isolated Go module under its own
+top-level directory, tied together by a root `go.work`:
+
+```
+tax-tools/
+  go.work                 # workspace tying all tool modules together
+  README.md               # repo index
+  schedule-fa/            # THIS tool (module github.com/akagr/tax-tools/schedule-fa)
+    go.mod
+    docs/  cmd/  internal/  data/
+  <future-tool>/          # e.g. schedule-cg/, form-67/ …
+```
+
+> Module path `github.com/akagr/tax-tools/schedule-fa` is a placeholder derived from the
+> account name; change it in `go.mod` + `go.work` if the real remote differs.
 
 ---
 
