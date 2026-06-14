@@ -15,8 +15,11 @@ challenges, locked decisions, architecture, and milestones.
   year. `generate` prints a parse summary.
 - **M2 — FX engine** ✅ — `fx.CSVStore` reads the community SBI FX RateKeeper format and
   converts to INR with preceding-working-day fallback and per-figure audit records.
+- **M3 — Table A3 + reports** ✅ — approximate peak (mode C) + row builder produce Table A3
+  (initial/peak/closing/dividend/proceeds in INR, audit trail, review flags), rendered to
+  **Markdown, CSV, and JSON**. `generate` now runs the full pipeline and writes the report.
 
-Next: M3 wires ingest + fx + (approximate) peak into actual Table A3 rows and renders them.
+Next: M4 (exact peak from daily prices), then M5 (Table A2 + entity metadata + edge cases).
 
 ## Usage (target)
 
@@ -25,7 +28,7 @@ schedulefa generate \
   --year 2024 \                          # CALENDAR year (Jan 1 – Dec 31), enforced
   --statement private/flex-2024.xml \    # IBKR Activity Flex Query, XML output (offline mode)
   --rates data/ttbr/usd.csv \            # optional SBI TTBR override
-  --out ./report --format md,csv,json
+  --out private/report --format md,csv,json   # output defaults under gitignored private/
 ```
 
 > Keep real Flex exports under `private/` (gitignored) — they contain your account

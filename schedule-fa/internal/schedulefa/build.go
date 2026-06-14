@@ -1,31 +1,33 @@
 // Package schedulefa assembles the final Schedule FA rows (Table A2 + A3) from a
 // parsed statement, the FX store, and computed peaks. Every INR figure carries
-// its fx.Conversion so the report can print a full audit trail.
+// the per-event fx.Conversion records behind it so the report can show its work.
+//
+// M3 builds Table A3 (one row per security held at any time in the calendar
+// year). Table A2 (the custodial account) and richer entity metadata are M5.
+//
+// Conversion-date conventions (documented assumptions):
+//   - Initial value : TTBR on each lot's acquisition date (or each buy's date).
+//   - Closing value : TTBR on 31-Dec.
+//   - Dividend      : TTBR on the pay/credit date of each distribution.
+//   - Sale proceeds : TTBR on each sell's trade date.
+//   - Peak value    : provided by the peak engine (max INR over priced points).
 package schedulefa
 
 import (
-	"errors"
+	"math/big"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
 	"github.com/akagr/tax-tools/schedule-fa/internal/model"
 	"github.com/akagr/tax-tools/schedule-fa/internal/peak"
 )
 
-// ErrNotImplemented is returned by stubs not yet built.
-var ErrNotImplemented = errors.New("schedulefa: not implemented")
-
-// A2Row is the custodial-account row (the IBKR account itself).
-type A2Row struct {
-	Institution    string
-	Address        string
-	ZIP            string
-	CountryCode    string
-	AccountNumber  string
-	Status         string
-	OpenDate       string
-	PeakBalance    fx.Conversion
-	ClosingBalance fx.Conversion
-	GrossCredited  fx.Conversion // interest + dividends credited during the year
+// Amount is an INR total plus the per-event conversions that sum to it.
+type Amount struct {
+	INR   model.Money
+	Audit []fx.Conversion
 }
 
 // A3Row is one security held at any time during the calendar year.
@@ -37,13 +39,28 @@ type A3Row struct {
 	ZIP           string
 	NatureEntity  string
 	AcquiredOn    string
-	InitialValue  fx.Conversion
-	PeakValue     fx.Conversion
-	ClosingValue  fx.Conversion
-	GrossDividend fx.Conversion // gross amount paid/credited
-	SaleProceeds  fx.Conversion // gross proceeds from sale/redemption
-	NeedsReview   bool          // e.g. approximate peak, corporate action, missing metadata
+	InitialValue  Amount
+	PeakValue     Amount
+	PeakApprox    bool
+	ClosingValue  Amount
+	GrossDividend Amount
+	SaleProceeds  Amount
+	NeedsReview   bool
 	ReviewNote    string
+}
+
+// A2Row is the custodial-account row (M5).
+type A2Row struct {
+	Institution    string
+	Address        string
+	ZIP            string
+	CountryCode    string
+	AccountNumber  string
+	Status         string
+	OpenDate       string
+	PeakBalance    Amount
+	ClosingBalance Amount
+	GrossCredited  Amount
 }
 
 // Report is the complete Schedule FA output for one calendar year.
@@ -53,7 +70,257 @@ type Report struct {
 	A3   []A3Row
 }
 
-// Build assembles the report. Implemented in M3 (A3) / M5 (A2 + edge cases).
+type valuedEvent struct {
+	Money model.Money
+	Date  time.Time
+}
+
+// Build assembles Table A3 from the statement, FX store, and computed peaks.
 func Build(s *model.Statement, store fx.Store, peaks []peak.Result) (*Report, error) {
-	return nil, ErrNotImplemented
+	rep := &Report{Year: s.Year}
+	yearEnd := time.Date(s.Year, time.December, 31, 0, 0, 0, 0, time.UTC)
+
+	peakByKey := map[string]peak.Result{}
+	for _, p := range peaks {
+		peakByKey[instKey(p.Instrument)] = p
+	}
+
+	// Every instrument held at any time during the year: positions ∪ trades.
+	insts := map[string]model.Instrument{}
+	var order []string
+	add := func(in model.Instrument) {
+		k := instKey(in)
+		if _, ok := insts[k]; !ok {
+			insts[k] = in
+			order = append(order, k)
+		}
+	}
+	for _, p := range s.OpenPositions {
+		add(p.Instrument)
+	}
+	for _, t := range s.Trades {
+		add(t.Instrument)
+	}
+	sort.Strings(order)
+
+	for _, k := range order {
+		inst := insts[k]
+		row := A3Row{
+			EntityName:   firstNonEmpty(inst.Name, inst.Symbol),
+			NatureEntity: natureOf(inst.AssetClass),
+			PeakApprox:   true,
+		}
+		row.CountryName, row.CountryCode = countryFor(inst.ListingCtry)
+
+		// Initial value + acquisition date.
+		var initEvents []valuedEvent
+		var acq time.Time
+		if lots := lotsFor(s, k); len(lots) > 0 {
+			for _, l := range lots {
+				initEvents = append(initEvents, valuedEvent{l.CostBasis, l.OpenDate})
+				acq = earliest(acq, l.OpenDate)
+			}
+		} else {
+			for _, t := range tradesFor(s, k) {
+				if t.Side == model.Buy {
+					cost := new(big.Rat).Mul(t.Quantity, ratOf(t.Price))
+					initEvents = append(initEvents, valuedEvent{model.NewMoney(t.Price.Currency, cost), t.Date})
+					acq = earliest(acq, t.Date)
+				}
+			}
+		}
+		row.AcquiredOn = fmtDate(acq)
+		initAmt, initErrs := convertEvents(store, initEvents)
+		row.InitialValue = initAmt
+
+		// Peak (from the peak engine).
+		if p, ok := peakByKey[k]; ok && p.HasValue {
+			row.PeakValue = Amount{INR: p.Peak.Result, Audit: []fx.Conversion{p.Peak}}
+		}
+
+		// Closing value (year-end position × mark price; 0 if exited).
+		var closeEvents []valuedEvent
+		if pos, mark, ok := closingFor(s, k); ok {
+			val := new(big.Rat).Mul(pos, ratOf(mark))
+			if val.Sign() > 0 {
+				closeEvents = append(closeEvents, valuedEvent{model.NewMoney(mark.Currency, val), yearEnd})
+			}
+		}
+		closeAmt, closeErrs := convertEvents(store, closeEvents)
+		row.ClosingValue = closeAmt
+
+		// Gross dividends (at pay date).
+		var divEvents []valuedEvent
+		for _, d := range dividendsFor(s, k) {
+			divEvents = append(divEvents, valuedEvent{d.Gross, d.PayDate})
+		}
+		divAmt, divErrs := convertEvents(store, divEvents)
+		row.GrossDividend = divAmt
+
+		// Sale proceeds (at trade date).
+		var procEvents []valuedEvent
+		for _, t := range tradesFor(s, k) {
+			if t.Side == model.Sell {
+				procEvents = append(procEvents, valuedEvent{t.Proceeds, t.Date})
+			}
+		}
+		procAmt, procErrs := convertEvents(store, procEvents)
+		row.SaleProceeds = procAmt
+
+		// Review flags — Mode C peaks always warrant a glance.
+		notes := []string{"peak is approximate (mode C)"}
+		if row.CountryCode == "" {
+			notes = append(notes, "country code unknown")
+		}
+		if row.Address == "" || row.ZIP == "" {
+			notes = append(notes, "entity address/ZIP missing (add via data/entities)")
+		}
+		for _, e := range concatErrs(initErrs, closeErrs, divErrs, procErrs) {
+			notes = append(notes, e.Error())
+		}
+		row.NeedsReview = true
+		row.ReviewNote = strings.Join(notes, "; ")
+
+		rep.A3 = append(rep.A3, row)
+	}
+
+	return rep, nil
+}
+
+// convertEvents converts each event to INR and sums them, collecting the audit
+// trail and any per-event FX errors (which become manual-review notes).
+func convertEvents(store fx.Store, evs []valuedEvent) (Amount, []error) {
+	sum := new(big.Rat)
+	var audit []fx.Conversion
+	var errs []error
+	for _, e := range evs {
+		conv, err := fx.Convert(store, e.Money, e.Date)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		sum.Add(sum, ratOf(conv.Result))
+		audit = append(audit, conv)
+	}
+	return Amount{INR: model.NewMoney(model.INR, sum), Audit: audit}, errs
+}
+
+// --- lookups over the statement ---
+
+func lotsFor(s *model.Statement, key string) []model.Lot {
+	var out []model.Lot
+	for _, l := range s.Lots {
+		if instKey(l.Instrument) == key {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func tradesFor(s *model.Statement, key string) []model.Trade {
+	var out []model.Trade
+	for _, t := range s.Trades {
+		if instKey(t.Instrument) == key {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func dividendsFor(s *model.Statement, key string) []model.Dividend {
+	var out []model.Dividend
+	for _, d := range s.Dividends {
+		if instKey(d.Instrument) == key {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func closingFor(s *model.Statement, key string) (pos *big.Rat, mark model.Money, ok bool) {
+	for _, p := range s.OpenPositions {
+		if instKey(p.Instrument) == key {
+			return p.Quantity, p.MarkPrice, true
+		}
+	}
+	return nil, model.Money{}, false
+}
+
+// --- small helpers ---
+
+func instKey(in model.Instrument) string {
+	if in.ISIN != "" {
+		return "isin:" + in.ISIN
+	}
+	return "sym:" + in.Symbol
+}
+
+func ratOf(m model.Money) *big.Rat {
+	if m.Amount == nil {
+		return new(big.Rat)
+	}
+	return m.Amount
+}
+
+func earliest(cur, d time.Time) time.Time {
+	if d.IsZero() {
+		return cur
+	}
+	if cur.IsZero() || d.Before(cur) {
+		return d
+	}
+	return cur
+}
+
+func fmtDate(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("2006-01-02")
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func concatErrs(groups ...[]error) []error {
+	var out []error
+	for _, g := range groups {
+		out = append(out, g...)
+	}
+	return out
+}
+
+// countryFor maps an ISO-2 country code to (name, ITR country code). The ITR
+// codes differ from ISO; only the common ones are mapped here, the rest are
+// flagged for manual entry.
+func countryFor(iso string) (name, itrCode string) {
+	switch strings.ToUpper(iso) {
+	case "US", "USA":
+		return "United States of America", "2"
+	case "":
+		return "", ""
+	default:
+		return iso, "" // name unknown-ish; ITR code must be filled manually
+	}
+}
+
+func natureOf(assetClass string) string {
+	switch strings.ToUpper(assetClass) {
+	case "STK":
+		return "Listed equity share"
+	case "ETF":
+		return "Exchange Traded Fund"
+	case "BOND":
+		return "Debt instrument"
+	case "":
+		return ""
+	default:
+		return assetClass
+	}
 }

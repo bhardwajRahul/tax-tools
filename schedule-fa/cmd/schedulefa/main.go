@@ -11,7 +11,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
 	"github.com/akagr/tax-tools/schedule-fa/internal/ibkr"
+	"github.com/akagr/tax-tools/schedule-fa/internal/peak"
+	"github.com/akagr/tax-tools/schedule-fa/internal/report"
+	"github.com/akagr/tax-tools/schedule-fa/internal/schedulefa"
 )
 
 const disclaimer = "NOTE: not tax advice. Output is a working draft to verify before filing."
@@ -57,7 +61,7 @@ func cmdGenerate(args []string) int {
 		flexQuery = fs.String("flex-query", "", "IBKR Flex Query id (online mode; M6)")
 		rates     = fs.String("rates", "", "path to an SBI TTBR rates CSV (overrides bundled)")
 		prices    = fs.String("prices", "", "path to a daily prices CSV (enables exact peak; M4)")
-		out       = fs.String("out", "./report", "output directory")
+		out       = fs.String("out", "private/report", "output directory (default under gitignored private/)")
 		format    = fs.String("format", "md,csv,json", "comma-separated: md,csv,json")
 	)
 	fs.Parse(args)
@@ -91,18 +95,74 @@ func cmdGenerate(args []string) int {
 	}
 	fmt.Printf("  account          : %s (%s), base %s\n", st.Account.Number, st.Account.Name, st.Account.BaseCurrency)
 	fmt.Printf("  open positions   : %d (year-end snapshot)\n", len(st.OpenPositions))
-	fmt.Printf("  lots             : %d\n", len(st.Lots))
-	fmt.Printf("  trades           : %d\n", len(st.Trades))
-	fmt.Printf("  dividends        : %d\n", len(st.Dividends))
+	fmt.Printf("  lots/trades/divs : %d / %d / %d\n", len(st.Lots), len(st.Trades), len(st.Dividends))
 
-	fmt.Printf("  rates            : %s\n", orDefault(*rates, "(bundled data/ttbr/*.csv)"))
-	fmt.Printf("  peak mode        : approximate (mode C) — exact (mode B) needs --prices (M4)\n")
 	if *prices != "" {
-		fmt.Printf("  prices           : %s\n", *prices)
+		fmt.Fprintln(os.Stderr, "note: --prices (exact peak, mode B) is not wired until M4; using approximate peak (mode C)")
 	}
-	fmt.Printf("  output           : %s  [%s]\n", *out, strings.ReplaceAll(*format, ",", ", "))
-	fmt.Fprintln(os.Stderr, "\nparsed OK. Remaining pipeline (fx → peak → build → report) not implemented yet (M1). "+disclaimer)
-	return 1
+
+	// Load SBI TTBR rates (M2). Default to ./data/ttbr if --rates is omitted.
+	ratesPath := orDefault(*rates, "data/ttbr")
+	store, err := fx.LoadRateKeeper(ratesPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: loading TTBR rates from %q: %v\n", ratesPath, err)
+		fmt.Fprintln(os.Stderr, "hint: download a RateKeeper CSV (see data/ttbr/README.md) and pass --rates <file|dir>")
+		return 1
+	}
+	fmt.Printf("  rates            : %s\n", ratesPath)
+
+	// Peak (mode C) → A3 rows → render.
+	peaks, err := peak.Compute(st, store, peak.ModeApprox, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: computing peak values: %v\n", err)
+		return 1
+	}
+	rep, err := schedulefa.Build(st, store, peaks)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: building report: %v\n", err)
+		return 1
+	}
+	formats, err := parseFormats(*format)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 2
+	}
+	paths, err := report.Write(*out, formats, rep)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: writing report: %v\n", err)
+		return 1
+	}
+
+	review := 0
+	for _, r := range rep.A3 {
+		if r.NeedsReview {
+			review++
+		}
+	}
+	fmt.Printf("  A3 rows          : %d  (%d need manual review)\n", len(rep.A3), review)
+	fmt.Printf("  wrote            : %s\n", strings.Join(paths, ", "))
+	fmt.Fprintln(os.Stderr, "\n"+disclaimer)
+	return 0
+}
+
+func parseFormats(s string) ([]report.Format, error) {
+	var out []report.Format
+	for _, f := range strings.Split(s, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		switch report.Format(f) {
+		case report.Markdown, report.CSV, report.JSON:
+			out = append(out, report.Format(f))
+		default:
+			return nil, fmt.Errorf("unknown --format %q (want md,csv,json)", f)
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no valid formats in %q", s)
+	}
+	return out, nil
 }
 
 func orDefault(s, def string) string {

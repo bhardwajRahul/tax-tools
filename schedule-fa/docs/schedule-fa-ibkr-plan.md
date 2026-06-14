@@ -271,8 +271,10 @@ schedulefa generate \
   (per-currency CSV; reads DATE + TT BUY; skips 0.00 non-publish days; latest-of-day wins).
   `RateOn` does preceding-working-day fallback; `Convert` emits `Conversion` audit records.
   Tested in `internal/fx/fx_test.go`.
-- **M3 — A3 (buy & hold):** closing value, initial value, dividends, proceeds in INR with
-  approximate peak (mode C). End-to-end report for the simple case.
+- **M3 — A3 (buy & hold):** ✅ `peak.Compute` (mode C) + `schedulefa.Build` produce Table A3
+  rows (initial/peak/closing/dividend/proceeds in INR, per-figure audit, review flags);
+  `report` renders md/csv/json with an audit trail + reconciliation. `generate` runs the
+  full pipeline end-to-end. Conversion-date conventions documented in `build.go`.
 - **M4 — Exact peak:** daily share reconstruction from trades + pluggable price provider
   (mode B). Mode C stays as labelled fallback.
 - **M5 — A2 + edge cases:** custodial account row; exited positions; corporate actions &

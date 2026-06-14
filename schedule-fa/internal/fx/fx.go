@@ -89,6 +89,27 @@ func NewCSVStore() *CSVStore {
 	}
 }
 
+// LoadRateKeeper loads a RateKeeper CSV file or a directory of them. A single
+// file's currency is inferred from its filename.
+func LoadRateKeeper(path string) (*CSVStore, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return LoadRateKeeperDir(path)
+	}
+	cur := currencyFromFilename(path)
+	if cur == "" {
+		return nil, fmt.Errorf("fx: cannot infer currency from filename %q (expected e.g. ..._USD.csv)", path)
+	}
+	s := NewCSVStore()
+	if err := s.LoadRateKeeperFile(cur, path); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 // LoadRateKeeperDir loads every *.csv in dir whose filename encodes a 3-letter
 // currency (e.g. SBI_REFERENCE_RATES_USD.csv). Files without a recognizable
 // currency suffix are skipped.

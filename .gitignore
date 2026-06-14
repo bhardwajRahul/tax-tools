@@ -18,6 +18,9 @@ private/            # local-only real statements / fixtures
 statement*.xml
 Schedule_FA*.xml
 flex-*.xml
-/report/
 *.token
 secrets.*
+# Generated reports default to private/ (above) — real ones contain holdings.
+
+# Third-party SBI TTBR data (download per data/ttbr/README.md; not vendored)
+schedule-fa/data/ttbr/*.csv
