@@ -108,50 +108,54 @@ func renderMarkdown(w io.Writer, r Report) error {
 
 	// Correlation matrix.
 	b.WriteString("## Correlation matrix\n\n")
-	b.WriteString("|            |")
-	for _, l := range r.Labels {
-		fmt.Fprintf(&b, " %s |", l)
+	header := append([]string{""}, r.Labels...)
+	aligns := make([]mdAlign, len(header))
+	for i := 1; i < len(aligns); i++ {
+		aligns[i] = alignRight
 	}
-	b.WriteString("\n|------------|")
-	for range r.Labels {
-		b.WriteString("------|")
-	}
-	b.WriteByte('\n')
+	rows := make([][]string, len(r.Labels))
 	for i, l := range r.Labels {
-		fmt.Fprintf(&b, "| **%s** |", l)
+		row := make([]string, 0, len(r.Labels)+1)
+		row = append(row, "**"+l+"**")
 		for j := range r.Labels {
-			fmt.Fprintf(&b, " %s |", f4(r.Correlation[i][j]))
+			row = append(row, f4(r.Correlation[i][j]))
 		}
-		b.WriteByte('\n')
-		_ = i
+		rows[i] = row
 	}
+	mdTable(&b, header, rows, aligns)
 	b.WriteByte('\n')
 
 	// Per-asset dispersion.
 	b.WriteString("## Per-asset stats\n\n")
-	b.WriteString("| Asset | Currency | Mean return | Volatility (per period) | Volatility (annualised) |\n")
-	b.WriteString("|-------|----------|-------------|-------------------------|-------------------------|\n")
+	statRows := make([][]string, len(r.Meta.Assets))
 	for i, a := range r.Meta.Assets {
 		cur := a.Currency
 		if a.Converted {
 			cur += " (converted)"
 		}
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", a.Label, cur, pct(r.Mean[i]), pct(r.Stdev[i]), pct(r.AnnVol[i]))
+		statRows[i] = []string{a.Label, cur, pct(r.Mean[i]), pct(r.Stdev[i]), pct(r.AnnVol[i])}
 	}
+	mdTable(&b,
+		[]string{"Asset", "Currency", "Mean return", "Volatility (per period)", "Volatility (annualised)"},
+		statRows,
+		[]mdAlign{alignLeft, alignLeft, alignRight, alignRight, alignRight})
 	b.WriteByte('\n')
 
 	// Pairwise detail.
 	if len(r.Pairs) > 0 {
 		b.WriteString("## Pairwise correlations (95% CI)\n\n")
-		b.WriteString("| Pair | r | 95% CI |\n")
-		b.WriteString("|------|---|--------|\n")
-		for _, p := range r.Pairs {
+		pairRows := make([][]string, len(r.Pairs))
+		for i, p := range r.Pairs {
 			ci := "n/a"
 			if !math.IsNaN(p.CI95Lo) && !math.IsNaN(p.CI95Hi) {
 				ci = fmt.Sprintf("[%s, %s]", f4(p.CI95Lo), f4(p.CI95Hi))
 			}
-			fmt.Fprintf(&b, "| %s – %s | %s | %s |\n", p.A, p.B, f4(p.R), ci)
+			pairRows[i] = []string{p.A + " – " + p.B, f4(p.R), ci}
 		}
+		mdTable(&b,
+			[]string{"Pair", "r", "95% CI"},
+			pairRows,
+			[]mdAlign{alignLeft, alignRight, alignLeft})
 		b.WriteByte('\n')
 	}
 
@@ -166,6 +170,87 @@ func renderMarkdown(w io.Writer, r Report) error {
 	fmt.Fprintf(&b, "> %s\n", disclaimer)
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+// mdAlign selects column justification for a Markdown table.
+type mdAlign int
+
+const (
+	alignLeft mdAlign = iota
+	alignRight
+)
+
+// mdTable writes a GitHub-flavoured Markdown table whose cells are padded to the
+// widest value in each column, so the raw source is aligned and readable. The
+// separator row encodes alignment (`---` left, `--:` right) which GitHub honours
+// when rendering.
+func mdTable(b *strings.Builder, header []string, rows [][]string, aligns []mdAlign) {
+	n := len(header)
+	width := make([]int, n)
+	for i, h := range header {
+		width[i] = runeLen(h)
+	}
+	for _, row := range rows {
+		for i := 0; i < n && i < len(row); i++ {
+			if w := runeLen(row[i]); w > width[i] {
+				width[i] = w
+			}
+		}
+	}
+	alignOf := func(i int) mdAlign {
+		if aligns != nil && i < len(aligns) {
+			return aligns[i]
+		}
+		return alignLeft
+	}
+
+	writeRow := func(cells []string) {
+		b.WriteByte('|')
+		for i := 0; i < n; i++ {
+			cell := ""
+			if i < len(cells) {
+				cell = cells[i]
+			}
+			b.WriteByte(' ')
+			b.WriteString(pad(cell, width[i], alignOf(i)))
+			b.WriteString(" |")
+		}
+		b.WriteByte('\n')
+	}
+
+	writeRow(header)
+	b.WriteByte('|')
+	for i := 0; i < n; i++ {
+		b.WriteByte(' ')
+		if alignOf(i) == alignRight {
+			dashes := width[i] - 1
+			if dashes < 1 {
+				dashes = 1
+			}
+			b.WriteString(strings.Repeat("-", dashes))
+			b.WriteString(": |")
+		} else {
+			b.WriteString(strings.Repeat("-", width[i]))
+			b.WriteString(" |")
+		}
+	}
+	b.WriteByte('\n')
+	for _, row := range rows {
+		writeRow(row)
+	}
+}
+
+func runeLen(s string) int { return len([]rune(s)) }
+
+func pad(s string, w int, a mdAlign) string {
+	gap := w - runeLen(s)
+	if gap <= 0 {
+		return s
+	}
+	if a == alignRight {
+		return strings.Repeat(" ", gap) + s
+	}
+	return s + strings.Repeat(" ", gap)
 }
 
 func renderCSV(w io.Writer, r Report) error {
