@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
 )
 
 // fakeStore returns a constant TTBR for every date, dated to the query day.

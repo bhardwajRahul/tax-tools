@@ -20,8 +20,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
 )
 
 // Mode selects the computation strategy.

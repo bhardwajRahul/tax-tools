@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/entities"
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
-	"github.com/akagr/tax-tools/schedule-fa/internal/peak"
+	"github.com/akagr/finance-tools/schedule-fa/internal/entities"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/peak"
 )
 
 // Amount is an INR total plus the per-event conversions that sum to it.

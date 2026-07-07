@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
-	"github.com/akagr/tax-tools/schedule-fa/internal/schedulefa"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/schedulefa"
 )
 
 // Format is an output format.

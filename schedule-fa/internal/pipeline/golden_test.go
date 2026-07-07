@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/ibkr"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
-	"github.com/akagr/tax-tools/schedule-fa/internal/report"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/ibkr"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/report"
 )
 
 // Regenerate the golden files with:  go test ./internal/pipeline -update

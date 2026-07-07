@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
 )
 
 func writeCSV(t *testing.T, body string) string {

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
 )
 
 type point struct {

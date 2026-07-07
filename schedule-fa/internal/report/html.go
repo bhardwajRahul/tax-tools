@@ -5,7 +5,7 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/schedulefa"
+	"github.com/akagr/finance-tools/schedule-fa/internal/schedulefa"
 )
 
 // htmlRenderer produces a single self-contained, print-friendly HTML page.

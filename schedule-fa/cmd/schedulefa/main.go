@@ -13,14 +13,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/entities"
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/ibkr"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
-	"github.com/akagr/tax-tools/schedule-fa/internal/peak"
-	"github.com/akagr/tax-tools/schedule-fa/internal/pipeline"
-	"github.com/akagr/tax-tools/schedule-fa/internal/prices"
-	"github.com/akagr/tax-tools/schedule-fa/internal/report"
+	"github.com/akagr/finance-tools/schedule-fa/internal/entities"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/ibkr"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/peak"
+	"github.com/akagr/finance-tools/schedule-fa/internal/pipeline"
+	"github.com/akagr/finance-tools/schedule-fa/internal/prices"
+	"github.com/akagr/finance-tools/schedule-fa/internal/report"
 )
 
 const disclaimer = "NOTE: not tax advice. Output is a working draft to verify before filing."

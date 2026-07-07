@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/entities"
-	"github.com/akagr/tax-tools/schedule-fa/internal/fx"
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
-	"github.com/akagr/tax-tools/schedule-fa/internal/peak"
+	"github.com/akagr/finance-tools/schedule-fa/internal/entities"
+	"github.com/akagr/finance-tools/schedule-fa/internal/fx"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/peak"
 )
 
 type fakeStore struct{ rate *big.Rat }

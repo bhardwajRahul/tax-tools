@@ -86,7 +86,7 @@ ibkr (parse Flex XML / online pull)  →  model.Statement
 
 ## Notes
 
-- Module path `github.com/akagr/tax-tools/...` is a placeholder; if the real remote differs,
+- Module path `github.com/akagr/finance-tools/...` is a placeholder; if the real remote differs,
   update `schedule-fa/go.mod`, `go.work`, and the README CI badge.
 - Output is **not tax advice** — every report is a draft to verify; keep the disclaimer and the
   audit trail intact so a professional can check every number.

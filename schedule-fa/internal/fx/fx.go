@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/akagr/tax-tools/schedule-fa/internal/model"
+	"github.com/akagr/finance-tools/schedule-fa/internal/model"
 )
 
 // Rate is a single day's TTBR for one currency, expressed as INR per 1 unit.

@@ -211,7 +211,7 @@ final INR number.
 ## 7. Proposed architecture (Go)
 
 ```
-tax-tools/
+finance-tools/
   cmd/schedulefa/        # CLI entrypoint (stdlib flag + subcommand router; no external deps in v1)
   internal/
     ibkr/                # Flex Web Service client + XML statement parser
@@ -313,16 +313,16 @@ This repo is a **monorepo of tax tools**. Each tool is an isolated Go module und
 top-level directory, tied together by a root `go.work`:
 
 ```
-tax-tools/
+finance-tools/
   go.work                 # workspace tying all tool modules together
   README.md               # repo index
-  schedule-fa/            # THIS tool (module github.com/akagr/tax-tools/schedule-fa)
+  schedule-fa/            # THIS tool (module github.com/akagr/finance-tools/schedule-fa)
     go.mod
     docs/  cmd/  internal/  data/
   <future-tool>/          # e.g. schedule-cg/, form-67/ …
 ```
 
-> Module path `github.com/akagr/tax-tools/schedule-fa` is a placeholder derived from the
+> Module path `github.com/akagr/finance-tools/schedule-fa` is a placeholder derived from the
 > account name; change it in `go.mod` + `go.work` if the real remote differs.
 
 ---
