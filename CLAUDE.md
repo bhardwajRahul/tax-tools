@@ -24,6 +24,7 @@ go vet ./...
 gofmt -l .                             # CI fails if this prints anything; gofmt -w . to fix
 go build ./cmd/schedulefa
 go run ./cmd/schedulefa generate --year 2026 --statement <file.xml> --rates <ttbr.csv> [--prices <p.csv>] [--entities <e.csv>]
+go run ./cmd/schedulefa fetch-prices --year 2026 [--tickers <file>] [--out <file>]  # Yahoo daily closes → prices CSV
 ```
 
 Golden test (locks the whole offline render path): after an **intended** output change,
@@ -80,7 +81,7 @@ ibkr (parse Flex XML / online pull)  →  model.Statement
   bit once: gitignore does **not** support inline comments; keep comments on their own line or
   a `private/   # ...` rule silently matches nothing.
 - TTBR data (`data/ttbr/*.csv`) and prices (`data/prices/*.csv`) are third-party/user data,
-  **not vendored** (gitignored); fetch via the README curl / `scripts/fetch-prices.py` (Yahoo
+  **not vendored** (gitignored); fetch via the README curl / `schedulefa fetch-prices` (Yahoo
   chart API). `data/entities/*.csv` (issuer address/ZIP/ISD-code overrides) **is** committed.
 - Test fixtures are synthetic (e.g. account `U1234567`, "Jane Doe"). Keep them that way.
 

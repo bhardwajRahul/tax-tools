@@ -14,7 +14,7 @@ your holdings never leave your machine.
 cd correlation
 
 # 1. Fetch daily closes for the assets in scripts/tickers.txt (Yahoo Finance).
-python3 scripts/fetch.py prices 2020-01-01 2024-12-31 > data/prices.csv
+go run ./cmd/correlation fetch prices --start 2020-01-01 --end 2024-12-31 > data/prices.csv
 
 # 2. Correlate them (weekly log returns, printed as Markdown).
 go run ./cmd/correlation compute --prices data/prices.csv
@@ -28,12 +28,30 @@ By default each asset is correlated in its **own** currency. For a rupee investo
 that matters is in **INR**, which folds in USD/INR moves. Fetch an FX series and normalise:
 
 ```sh
-python3 scripts/fetch.py fx 2020-01-01 2024-12-31 USD:INR=X > data/fx.csv
+go run ./cmd/correlation fetch fx --start 2020-01-01 --end 2024-12-31 USD:INR=X > data/fx.csv
 go run ./cmd/correlation compute --prices data/prices.csv --base-currency INR --fx data/fx.csv
 ```
 
 Converting to a common currency typically **changes** the correlation — that shift is exactly
 the diversification (or lack of it) the FX exposure adds.
+
+### Rolling correlation (how it moves over time)
+
+A single full-sample correlation hides the fact that correlations drift — and tend to spike
+toward 1 in stress, exactly when diversification matters most. Pass `--rolling-window N` to also
+get the correlation over a **trailing sliding window** of `N` return observations, one value per
+window position:
+
+```sh
+# 26-week (~6-month) rolling correlation, on top of the full-sample numbers
+go run ./cmd/correlation compute --prices data/prices.csv --frequency weekly --rolling-window 26
+```
+
+The window slides forward one observation at a time; each value is the Pearson r over the last
+`N` returns ending on that date. It appears in every output format (a dated table in Markdown,
+a labelled block in CSV, a `rolling` object in JSON). Shorter windows react faster but are
+noisier; longer windows are smoother but lag regime changes. The window must be `>= 2` and no
+larger than the number of return observations.
 
 > **Keep the FX window in sync with prices.** The FX series must span the whole price date
 > range, so fetch both over the *same* dates. If you later re-fetch prices over a longer window
@@ -51,6 +69,8 @@ correlation compute --prices <csv|dir> [flags]
   --fx                FX CSV, required when --base-currency needs conversions
   --frequency         daily | weekly | monthly (default weekly)
   --returns           log | simple (default log)
+  --rolling-window    if >0, also emit rolling correlation over this many
+                      return observations (a trailing sliding window)
   --format            comma-separated: md,csv,json (default md)
   --out               output directory (default: print to stdout)
 ```

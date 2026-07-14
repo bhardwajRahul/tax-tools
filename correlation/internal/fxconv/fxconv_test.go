@@ -89,7 +89,7 @@ func TestConvertMissingRateErrors(t *testing.T) {
 		t.Fatal("want error when no rate on or before the date")
 	}
 	// Error must be actionable: report actual coverage and a re-fetch hint.
-	for _, want := range []string{"2024-06-01", "re-fetch", "fetch.py fx"} {
+	for _, want := range []string{"2024-06-01", "re-fetch", "fetch fx"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q missing %q", err.Error(), want)
 		}

@@ -148,12 +148,12 @@ func gapError(s series.Series, base string, need time.Time, t *Table) error {
 	first, last, ok := t.coverage(s.Currency)
 	if !ok {
 		return fmt.Errorf("fxconv: %q is in %s but the FX data has no %s->%s rates at all; "+
-			"fetch them, e.g. scripts/fetch.py fx <start> <end> %s:%s=X",
+			"fetch them, e.g. correlation fetch fx --start <start> --end <end> %s:%s=X",
 			s.Label, s.Currency, s.Currency, base, s.Currency, base)
 	}
 	return fmt.Errorf("fxconv: no %s->%s rate on or before %s (needed for %q); "+
 		"FX data only covers %s..%s — re-fetch it over the price range, "+
-		"e.g. scripts/fetch.py fx %s <end> %s:%s=X",
+		"e.g. correlation fetch fx --start %s --end <end> %s:%s=X",
 		s.Currency, base, need.Format(dateLayout), s.Label,
 		first.Format(dateLayout), last.Format(dateLayout),
 		need.Format(dateLayout), s.Currency, base)

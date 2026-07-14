@@ -26,12 +26,13 @@ sum (the run reports this).
 Use the helper, which pulls from the Yahoo Finance chart API (no key) and writes this format:
 
 ```sh
-scripts/fetch-prices.py <year>            # reads scripts/tickers.txt
+./schedulefa fetch-prices --year <year>   # reads scripts/tickers.txt by default
 ```
 
 Edit `scripts/tickers.txt` (one line per holding: `symbol  yahoo-symbol  isin  [currency]`).
 Yahoo symbols: US tickers are plain (e.g. `IBKR`); LSE uses `.L` (e.g. `VWRA.L`, the USD
-line — `VWRP.L` is the GBP line). The script writes the **raw** close (not adjusted).
+line — `VWRP.L` is the GBP line). It writes the **raw** close (not adjusted) to
+`data/prices/prices-<year>.csv` (override with `--tickers` / `--out`).
 
 Price files are **not vendored** and are gitignored — they can be large and are user-specific.
 

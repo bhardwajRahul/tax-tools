@@ -5,11 +5,16 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +26,7 @@ import (
 	"github.com/akagr/finance-tools/schedule-fa/internal/pipeline"
 	"github.com/akagr/finance-tools/schedule-fa/internal/prices"
 	"github.com/akagr/finance-tools/schedule-fa/internal/report"
+	"github.com/akagr/finance-tools/schedule-fa/internal/yahoo"
 )
 
 const disclaimer = "NOTE: not tax advice. Output is a working draft to verify before filing."
@@ -33,6 +39,8 @@ func main() {
 	switch os.Args[1] {
 	case "generate":
 		os.Exit(cmdGenerate(os.Args[2:]))
+	case "fetch-prices":
+		os.Exit(cmdFetchPrices(os.Args[2:]))
 	case "version":
 		fmt.Println("schedulefa 0.6.0")
 	case "-h", "--help", "help":
@@ -49,9 +57,11 @@ func usage(w *os.File) {
 
 Usage:
   schedulefa generate --year <YYYY> --statement <file.xml> [flags]
+  schedulefa fetch-prices --year <YYYY> [--tickers <file>] [--out <file>]
   schedulefa version
 
 Run "schedulefa generate -h" for generate flags.
+Run "schedulefa fetch-prices -h" for fetch-prices flags.
 
 %s
 `, disclaimer)
@@ -220,4 +230,156 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// priceTicker is one holding to fetch daily closes for.
+type priceTicker struct {
+	Symbol   string
+	Yahoo    string
+	ISIN     string
+	Currency string
+}
+
+// barFetcher is the subset of *yahoo.Client the fetch-prices command needs;
+// an interface so the fetch loop is testable without hitting the network.
+type barFetcher interface {
+	Chart(ctx context.Context, symbol string, start, end time.Time) ([]yahoo.Bar, error)
+}
+
+// cmdFetchPrices fetches daily closes from Yahoo Finance into the CSV that
+// `generate --prices` expects (columns: date,symbol,isin,close,currency). It
+// writes the RAW (unadjusted) close — the figure Schedule FA wants.
+func cmdFetchPrices(args []string) int {
+	fs := flag.NewFlagSet("fetch-prices", flag.ExitOnError)
+	var (
+		year     = fs.Int("year", 0, "CALENDAR year to fetch prices for (Jan 1 – Dec 31), e.g. 2026")
+		tickersP = fs.String("tickers", "scripts/tickers.txt", "tickers file: lines of '<symbol> <yahoo-symbol> <isin> [currency]'")
+		out      = fs.String("out", "", "output CSV path (default: data/prices/prices-<year>.csv)")
+	)
+	fs.Parse(args)
+
+	if *year == 0 {
+		fmt.Fprintln(os.Stderr, "error: --year is required (CALENDAR year, e.g. 2026)")
+		return 2
+	}
+	if *year < 2000 || *year > 2099 {
+		fmt.Fprintf(os.Stderr, "error: --year %d is not a plausible calendar year\n", *year)
+		return 2
+	}
+
+	tf, err := os.Open(*tickersP)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: opening tickers file %q: %v\n", *tickersP, err)
+		return 1
+	}
+	defer tf.Close()
+	tickers, err := parsePriceTickers(tf)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: reading tickers file %q: %v\n", *tickersP, err)
+		return 1
+	}
+	if len(tickers) == 0 {
+		fmt.Fprintf(os.Stderr, "error: no tickers in %q\n", *tickersP)
+		return 1
+	}
+
+	outPath := orDefault(*out, filepath.Join("data", "prices", fmt.Sprintf("prices-%d.csv", *year)))
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "error: creating output dir: %v\n", err)
+		return 1
+	}
+	f, err := os.Create(outPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: creating %q: %v\n", outPath, err)
+		return 1
+	}
+	defer f.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	total, err := fetchPricesTo(ctx, yahoo.NewClient(), f, tickers, *year, 500*time.Millisecond)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	fmt.Fprintf(os.Stderr, "wrote %d rows to %s\n", total, outPath)
+	if total == 0 {
+		return 1
+	}
+	return 0
+}
+
+// parsePriceTickers reads lines of "<symbol> <yahoo-symbol> <isin> [currency]";
+// blank lines and lines beginning with '#' are ignored. Currency defaults to USD.
+func parsePriceTickers(r io.Reader) ([]priceTicker, error) {
+	var out []priceTicker
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) < 3 {
+			fmt.Fprintf(os.Stderr, "WARN: skipping malformed ticker line: %s\n", line)
+			continue
+		}
+		cur := "USD"
+		if len(parts) > 3 {
+			cur = parts[3]
+		}
+		out = append(out, priceTicker{Symbol: parts[0], Yahoo: parts[1], ISIN: parts[2], Currency: cur})
+	}
+	return out, sc.Err()
+}
+
+// fetchPricesTo fetches each ticker's daily closes for the calendar year and
+// writes CSV rows to w. delay is the pause between tickers (0 to disable). A
+// per-ticker fetch failure is reported to stderr and skipped, not fatal. It
+// returns the number of data rows written.
+func fetchPricesTo(ctx context.Context, f barFetcher, w io.Writer, tickers []priceTicker, year int, delay time.Duration) (int, error) {
+	cw := csv.NewWriter(w)
+	if err := cw.Write([]string{"date", "symbol", "isin", "close", "currency"}); err != nil {
+		return 0, err
+	}
+	start := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(year, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	total := 0
+	for i, tk := range tickers {
+		bars, err := f.Chart(ctx, tk.Yahoo, start, end)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: %s (%s) failed: %v\n", tk.Symbol, tk.Yahoo, err)
+			continue
+		}
+		for _, b := range bars {
+			if err := cw.Write([]string{b.Date, tk.Symbol, tk.ISIN, strconv.FormatFloat(b.Close, 'f', 4, 64), tk.Currency}); err != nil {
+				return total, err
+			}
+			total++
+		}
+		tag := fmt.Sprintf("%d rows", len(bars))
+		if len(bars) == 0 {
+			tag = "0 rows (check the Yahoo symbol)"
+		}
+		fmt.Fprintf(os.Stderr, "  %s (%s): %s\n", tk.Symbol, tk.Yahoo, tag)
+		if delay > 0 && i < len(tickers)-1 {
+			if err := sleepCtx(ctx, delay); err != nil {
+				return total, err
+			}
+		}
+	}
+	cw.Flush()
+	return total, cw.Error()
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

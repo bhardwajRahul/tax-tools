@@ -1,4 +1,4 @@
-# Ticker map for scripts/fetch.py — one asset per line:
+# Ticker map for `correlation fetch prices` — one asset per line:
 #   <label>  <yahoo-symbol>  [currency]
 # Lines starting with '#' are ignored; currency defaults to USD.
 # Look up Yahoo symbols at https://finance.yahoo.com (indices start with '^').

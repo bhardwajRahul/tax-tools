@@ -85,7 +85,7 @@ curl -L -o data/ttbr/SBI_REFERENCE_RATES_USD.csv \
   https://raw.githubusercontent.com/sahilgupta/sbi-fx-ratekeeper/main/csv_files/SBI_REFERENCE_RATES_USD.csv
 
 # 2. Daily prices for the exact peak  (edit scripts/tickers.txt first; see data/prices/README.md)
-scripts/fetch-prices.py 2026
+./schedulefa fetch-prices --year 2026
 ```
 
 **Offline** (downloaded XML):
