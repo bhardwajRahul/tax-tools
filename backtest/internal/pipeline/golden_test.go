@@ -173,6 +173,31 @@ func TestGoldenWalkForwardOpt(t *testing.T) {
 	checkGolden(t, "wfo.json", renderWFO("json"))
 }
 
+// Locks the Monte-Carlo render path (deterministic via a fixed seed).
+func TestGoldenMonteCarlo(t *testing.T) {
+	opts := Options{
+		PricesPath:     filepath.Join(fixtures, "prices.csv"),
+		Strategy:       "sma-cross",
+		Fast:           3,
+		Slow:           8,
+		InitialCapital: 100000,
+		Costs:          engine.Costs{BrokerageBps: 0, STTBps: 10, SlippageBps: 5},
+	}
+	mc, err := BuildMonteCarlo(opts, 500, 12345)
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderMC := func(format string) []byte {
+		var buf bytes.Buffer
+		if err := report.RenderMonteCarlo(&buf, mc, format); err != nil {
+			t.Fatal(err)
+		}
+		return buf.Bytes()
+	}
+	checkGolden(t, "montecarlo.md", renderMC("md"))
+	checkGolden(t, "montecarlo.json", renderMC("json"))
+}
+
 // Locks the parameter-sweep render path: a 2-D crossover grid (with invalid
 // cells) and a 1-D momentum sweep.
 func TestGoldenSweep(t *testing.T) {

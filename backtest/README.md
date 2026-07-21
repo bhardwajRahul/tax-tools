@@ -356,6 +356,40 @@ A strategy whose advantage survives only at unrealistically low costs has no rea
 costs are always worse than a backtest's. A gentle, linear decay (rather than a cliff) is the
 reassuring shape.
 
+## Monte-Carlo: how much was luck?
+
+A backtest gives you *one* history. Monte-Carlo asks: if the same daily edge had played out in a
+different order and mix, how good — or bad — could it have looked? It takes the strategy's daily
+returns, **resamples them thousands of times** (bootstrap), and reports the whole distribution:
+
+```sh
+go run ./cmd/backtest montecarlo --prices data/nifty.csv --symbol NIFTY50 \
+  --strategy ema-cross --fast 20 --slow 50 --trials 2000
+```
+
+```
+| Metric       |  Actual |     P5 |    P25 |  Median |     P75 |     P95 |
+| Total return | 145.93% | 39.17% | 94.91% | 145.26% | 208.16% | 329.25% |
+| CAGR         |   9.42% |  3.36% |  6.90% |   9.39% |  11.92% |  15.69% |
+| Max drawdown |  21.65% | 11.92% | 15.05% |  18.03% |  22.05% |  29.03% |
+| Sharpe       |    0.90 |   0.36 |   0.67 |    0.89 |    1.12 |    1.43 |
+```
+
+Each row shows your **actual** result next to the 5th–95th percentiles of the resampled
+distribution. What to look for:
+
+- **Where does "Actual" sit?** Near the median (as here) means the backtest wasn't a fluke of
+  ordering. Up near P95 means you got a *lucky* draw and should expect worse live.
+- **Does the spread stay positive?** Here even the P5 total return is +39% and **100% of trials
+  were profitable** — a robust-looking edge. If P5 were deeply negative, or many trials lost
+  money, the headline number would be leaning on luck.
+- **Drawdown P95** is a sober "how bad could the worst dip get?" — often uglier than the single
+  backtest showed.
+
+Reproducible via `--seed` (fixed by default) and `--trials` (default 1000). Caveat: this
+bootstrap shuffles days *independently*, so it captures **sampling luck** but not autocorrelation
+or regime effects — read it alongside walk-forward, not instead of it.
+
 ## Usage
 
 ```
@@ -391,6 +425,10 @@ backtest sweep --prices <csv> --strategy <name> [--param name:min:max:step ...] 
   --param          parameter to sweep as name:min:max:step (repeatable, up to 2; default per strategy)
                    names: fast|slow|lookback|rsi-period|rsi-threshold|entry|exit|slippage-bps|brokerage-bps|stt-bps|vol-target
   --metric         grid metric: return | cagr | sharpe | sortino | calmar | drawdown (default sharpe)
+
+backtest montecarlo --prices <csv> --strategy <name> [--trials N] [--seed S] [strategy/cost flags]
+  --trials         number of bootstrap trials (default 1000)
+  --seed           random seed, fixed for reproducibility (default 1)
 
 backtest fetch prices --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--tickers <file>]
 ```
@@ -452,9 +490,10 @@ flattering number a strategy will ever show. Delivered so far: **walk-forward** 
 (`walkforward`), **parameter sweeps** (`sweep`) that map the performance surface (including
 **cost-sensitivity** sweeps over slippage/brokerage/STT), and **walk-forward optimisation**
 (`walkforward --optimize`) that re-fits parameters on each training window and tests them
-out-of-sample — the most honest estimate here of live performance. Next:
+out-of-sample — the most honest estimate here of live performance, and **Monte-Carlo** bootstrap
+(`montecarlo`) that resamples daily returns to show how much of a result could be luck. Next:
 
-- Monte-Carlo trade reshuffling and regime analysis (bull/bear/sideways, high/low vol).
+- Regime analysis: split performance by market state (bull/bear, high/low volatility).
 
 **Phase 3 — Paper trading (zero capital).** Wire the surviving strategy to a **live data feed**
 and place *simulated* orders for weeks. Validates data plumbing, latency, and real slippage
